@@ -57,10 +57,9 @@ def bootstrap(namespace: dict) -> GameBootstrap:
     from platform_web import is_web
 
     if is_web():
-        from web_loader import hide_html_loader, paint_boot_screen
+        from web_loader import paint_boot_screen
 
-        hide_html_loader()
-        paint_boot_screen(screen, "グラフィックを読み込んでいます…（初回1〜5分）", 12)
+        paint_boot_screen(screen, "Loading graphics (1-5 min first time)...", 12)
 
     install_screen_modes(namespace)
     install_game_constants(namespace)
@@ -71,13 +70,16 @@ def bootstrap(namespace: dict) -> GameBootstrap:
     install_assets(namespace, load_all_assets(PLAY_WIDTH, PLAY_HEIGHT, boot_screen=screen if is_web() else None))
 
     if is_web():
-        paint_boot_screen(screen, "効果音を読み込んでいます…", 78)
+        paint_boot_screen(screen, "効果音を読み込んでいます…", 78, font_path=namespace.get("noto_font_path"))
 
     set_window_icon()
     install_sfx(namespace, load_all_sfx(load_sound))
 
     if is_web():
-        paint_boot_screen(screen, "起動準備中…", 92)
+        from web_loader import hide_html_loader, paint_boot_screen
+
+        paint_boot_screen(screen, "起動準備中…", 100, font_path=namespace.get("noto_font_path"))
+        hide_html_loader()
 
     render_ui.configure(
         namespace["font"],

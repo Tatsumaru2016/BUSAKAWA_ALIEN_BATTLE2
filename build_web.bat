@@ -53,14 +53,14 @@ if "%BUILD_MODE%"=="serve" (
     echo   Open http://localhost:8000 in Chrome/Edge
     echo   Debug: http://localhost:8000#debug
     echo.
-    "%PY%" -m pygbag --title "Busakawa Alien Battle 2" --template web/busakawa.tmpl .
+    "%PY%" -m pygbag --title "Busakawa Alien Battle 2" --width 1300 --height 808 --template web/busakawa.tmpl .
     exit /b 0
 )
 
 echo Building web package ...
 echo   Output: build\web\
 echo.
-    "%PY%" -m pygbag --build --title "Busakawa Alien Battle 2" --template web/busakawa.tmpl --archive .
+    "%PY%" -m pygbag --build --title "Busakawa Alien Battle 2" --width 1300 --height 808 --template web/busakawa.tmpl --archive .
 if errorlevel 1 goto build_failed
 
 echo.

@@ -22,4 +22,4 @@ def create_splash(resolve_asset, play_w: int, play_h: int, *, font_path=None, sc
 
     from splash_logo import GGameSplash
 
-    return GGameSplash(resolve_asset, play_w, play_h, font_path=font_path)
+    return GGameSplash(resolve_asset, screen_w, screen_h, font_path=font_path)

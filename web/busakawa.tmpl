@@ -12,8 +12,10 @@ from pathlib import Path
 
 async def bab_set_stage(msg, pct=None):
     try:
-        js = f"window.BABLoader && BABLoader.setStage({json.dumps(msg, ensure_ascii=False)})"
-        platform.window.eval(js)
+        doc = platform.document
+        el = doc.getElementById("bab-stage")
+        if el:
+            el.innerText = msg
         if pct is not None:
             platform.window.eval(f"window.BABLoader && BABLoader.setPercent({float(pct)})")
     except Exception:
@@ -73,7 +75,7 @@ async def custom_site():
 
     if not platform.window.MM.UME:
         __import__(__name__).__file__ = main
-        await bab_set_stage("準備完了！画面をタップ / クリックで開始", 100)
+        await bab_set_stage("Ready! Tap / click to start", 100)
         await bab_show_tap_to_start()
         while not platform.window.MM.UME:
             await asyncio.sleep(.1)
@@ -83,11 +85,11 @@ async def custom_site():
     __import__(__name__).__file__ = main
 
     def ui_callback(pkg):
-        msg = f"モジュール読込中: {pkg}"
+        msg = f"Loading module: {pkg}"
         try:
-            platform.window.eval(
-                f"window.BABLoader && BABLoader.setStage({json.dumps(msg, ensure_ascii=False)})"
-            )
+            el = platform.document.getElementById("bab-stage")
+            if el:
+                el.innerText = msg
             platform.window.eval("window.BABLoader && BABLoader.setPercent(Math.min(93, BABLoader.lastPct + 0.2))")
         except Exception:
             pass
@@ -183,7 +185,45 @@ window.BABLoader = {
         this.indeterminateTimer = setInterval(() => this.tickIndeterminate(), 400);
         this.rotateTip();
         this.hookModuleStatus();
+        this.wireStartClick();
         sync();
+    },
+
+    wireStartClick() {
+        if (this._startWired || !this.overlay) return;
+        this._startWired = true;
+        const unlock = (ev) => {
+            if (!this.overlay.classList.contains("bab-ready")) return;
+            ev.preventDefault();
+            ev.stopPropagation();
+            this.fireUmeUnlock();
+        };
+        this.overlay.addEventListener("click", unlock);
+        this.overlay.addEventListener("touchend", unlock, { passive: false });
+        if (this.tapCta) {
+            this.tapCta.addEventListener("click", unlock);
+            this.tapCta.addEventListener("touchend", unlock, { passive: false });
+        }
+    },
+
+    fireUmeUnlock() {
+        const canvas = document.getElementById("canvas");
+        const infobox = document.getElementById("infobox");
+        if (canvas) {
+            try { canvas.style.visibility = "visible"; canvas.focus(); } catch (e) {}
+            const opts = { bubbles: true, cancelable: true, view: window };
+            for (const type of ["pointerdown", "mousedown", "pointerup", "mouseup", "click"]) {
+                canvas.dispatchEvent(new MouseEvent(type, opts));
+            }
+        }
+        if (infobox) {
+            try { infobox.click(); } catch (e) {}
+        }
+        try {
+            const mm = (window.python && window.python.canvas && window.python.canvas.MM)
+                || (window.Module && window.Module.canvas && window.Module.canvas.MM);
+            if (mm) mm.UME = true;
+        } catch (e) {}
     },
 
     hookModuleStatus() {
@@ -285,10 +325,14 @@ window.BABLoader = {
     showTapToStart() {
         if (this.overlay) {
             this.overlay.classList.add("bab-ready");
+            this.overlay.style.cursor = "pointer";
         }
+        this.setStage("Ready! Tap / click anywhere to start");
+        this.setPercent(100);
         if (this.tapCta) {
             this.tapCta.hidden = false;
         }
+        this.wireStartClick();
     },
 
     hideTapToStart() {
@@ -566,6 +610,10 @@ function show_infobox() {
             50% { transform: scale(1.03); box-shadow: 0 0 36px rgba(94, 231, 255, 0.6); }
         }
 
+        #bab-loader.bab-ready {
+            cursor: pointer;
+        }
+
         #bab-loader.bab-ready .bab-panel {
             border-color: rgba(255, 213, 106, 0.75);
             box-shadow:
@@ -653,7 +701,7 @@ function show_infobox() {
             <div class="bab-bar-track"><div id="bab-bar-fill"></div></div>
             <div id="bab-percent">0%</div>
             <div id="bab-tip"></div>
-            <div id="bab-tap-cta" hidden>▶ タップ / クリックで開始</div>
+            <div id="bab-tap-cta" hidden>▶ Tap / click to start</div>
             <div class="bab-dots">▸▸▸</div>
         </div>
     </div>

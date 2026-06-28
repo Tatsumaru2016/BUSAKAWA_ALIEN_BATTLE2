@@ -33,7 +33,14 @@ def hide_html_loader() -> None:
 def set_html_stage(msg: str, pct: float | None = None) -> None:
     if not is_web():
         return
-    _eval(f"window.BABLoader && BABLoader.setStage({json.dumps(msg, ensure_ascii=False)})")
+    try:
+        import platform
+
+        el = platform.document.getElementById("bab-stage")
+        if el:
+            el.innerText = msg
+    except Exception:
+        _eval(f"window.BABLoader && BABLoader.setStage({json.dumps(msg, ensure_ascii=True)})")
     if pct is not None:
         _eval(f"window.BABLoader && BABLoader.setPercent({float(pct)})")
 

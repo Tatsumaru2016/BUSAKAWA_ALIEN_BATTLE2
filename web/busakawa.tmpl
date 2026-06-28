@@ -12,12 +12,30 @@ from pathlib import Path
 
 async def bab_set_stage(msg, pct=None):
     try:
-        w = platform.window
-        el = w.document.getElementById("bab-stage")
+        doc = platform.document
+        el = doc.getElementById("bab-stage")
         if el:
             el.innerText = msg
         if pct is not None:
-            w.eval(f"window.BABLoader && BABLoader.setPercent({float(pct)})")
+            v = max(0.0, min(100.0, float(pct)))
+            fill = doc.getElementById("bab-bar-fill")
+            pct_el = doc.getElementById("bab-percent")
+            if fill:
+                fill.style.width = f"{v}%"
+            if pct_el:
+                pct_el.innerText = f"{int(v)}%"
+    except Exception:
+        pass
+
+async def bab_show_tap_to_start():
+    try:
+        platform.window.eval("window.BABLoader && BABLoader.showTapToStart()")
+    except Exception:
+        pass
+
+async def bab_hide_tap_to_start():
+    try:
+        platform.window.eval("window.BABLoader && BABLoader.hideTapToStart()")
     except Exception:
         pass
 
@@ -30,7 +48,6 @@ async def bab_hide_loader():
 async def custom_site():
     import embed
     platform.window.transfer.hidden = True
-    platform.window.canvas.style.visibility = "visible"
 
     bundle = "{{cookiecutter.archive}}"
     appdir = Path(f"/data/data/{bundle}")
@@ -64,13 +81,11 @@ async def custom_site():
 
     if not platform.window.MM.UME:
         __import__(__name__).__file__ = main
-        msg = "準備完了！画面をタップ / クリックで開始"
-        platform.window.infobox.innerText = msg
-        platform.window.infobox.className = "bab-start-prompt"
-        platform.window.infobox.style.display = "block"
-        await bab_hide_loader()
+        await bab_set_stage("準備完了！画面をタップ / クリックで開始", 100)
+        await bab_show_tap_to_start()
         while not platform.window.MM.UME:
             await asyncio.sleep(.1)
+        await bab_hide_tap_to_start()
 
     await TopLevel_async_handler.start_toplevel(platform.shell, console=window.python.config.debug)
     __import__(__name__).__file__ = main
@@ -88,6 +103,7 @@ async def custom_site():
     await shell.source(main, callback=ui_callback)
 
     await bab_hide_loader()
+    platform.window.canvas.style.visibility = "visible"
     platform.window.infobox.style.display = "none"
     platform.window.config.gui_divider = 1
     platform.window.window_resize()
@@ -138,14 +154,21 @@ window.BABLoader = {
     ],
     tipIndex: 0,
     tipTimer: null,
+    syncTimer: null,
+    moduleHookTimer: null,
+    indeterminateTimer: null,
     lastPct: 0,
+    inited: false,
 
     init() {
+        if (this.inited) return;
+        this.inited = true;
         this.overlay = document.getElementById("bab-loader");
         this.barFill = document.getElementById("bab-bar-fill");
         this.percent = document.getElementById("bab-percent");
         this.stage = document.getElementById("bab-stage");
         this.tip = document.getElementById("bab-tip");
+        this.tapCta = document.getElementById("bab-tap-cta");
         this.progress = document.getElementById("progress");
         this.status = document.getElementById("status");
 
@@ -165,8 +188,51 @@ window.BABLoader = {
         }
         this.syncTimer = setInterval(sync, 80);
         this.tipTimer = setInterval(() => this.rotateTip(), 4200);
+        this.indeterminateTimer = setInterval(() => this.tickIndeterminate(), 400);
         this.rotateTip();
+        this.hookModuleStatus();
         sync();
+    },
+
+    hookModuleStatus() {
+        const hook = () => {
+            if (typeof Module === "undefined" || typeof Module.setStatus !== "function") {
+                return false;
+            }
+            if (Module.setStatus.__babHooked) {
+                return true;
+            }
+            const orig = Module.setStatus.bind(Module);
+            Module.setStatus = (text) => {
+                orig(text);
+                this.syncProgress();
+                if (text && text !== "hide" && this.lastPct < 82) {
+                    this.setStage(this.stageFromStatus(String(text)));
+                }
+                if (text === "hide") {
+                    this.setPercent(Math.max(this.lastPct, 95));
+                }
+            };
+            Module.setStatus.__babHooked = true;
+            return true;
+        };
+        if (!hook()) {
+            this.moduleHookTimer = setInterval(() => {
+                if (hook()) {
+                    clearInterval(this.moduleHookTimer);
+                    this.moduleHookTimer = null;
+                }
+            }, 40);
+        }
+    },
+
+    tickIndeterminate() {
+        if (this.lastPct >= 8 || this.overlay?.classList.contains("bab-ready")) {
+            return;
+        }
+        const t = Date.now() / 1000;
+        const wave = 4 + Math.sin(t * 2.2) * 3 + Math.sin(t * 0.7) * 2;
+        this.setPercent(Math.max(this.lastPct, wave));
     },
 
     stageFromStatus(text) {
@@ -181,22 +247,22 @@ window.BABLoader = {
     syncProgress() {
         const p = this.progress;
         let pct = this.lastPct;
-        if (p && !p.hidden && p.max > 0) {
-            const raw = (parseFloat(p.value) || 0) / (parseFloat(p.max) || 100);
-            pct = Math.min(99, Math.max(0, raw * 100));
-            if (parseFloat(p.value) > 100) {
-                pct = Math.min(99, 70 + (parseFloat(p.value) - 100) * 0.6);
+        if (p) {
+            const max = parseFloat(p.max);
+            const val = parseFloat(p.value);
+            if (!Number.isNaN(max) && max > 0 && !Number.isNaN(val)) {
+                pct = Math.min(99, Math.max(0, (val / max) * 100));
+                if (val > max) {
+                    pct = Math.min(99, 72 + (val - max) * 0.45);
+                }
             }
         }
         if (pct > this.lastPct) {
             this.lastPct = pct;
         }
         this.setPercent(this.lastPct);
-        if (this.status && this.status.textContent) {
-            const label = this.stageFromStatus(this.status.textContent);
-            if (this.stage && pct < 80) {
-                this.stage.textContent = label;
-            }
+        if (this.status && this.status.textContent && this.lastPct < 82) {
+            this.setStage(this.stageFromStatus(this.status.textContent));
         }
     },
 
@@ -220,10 +286,30 @@ window.BABLoader = {
         this.tip.classList.add("bab-tip-in");
     },
 
+    showTapToStart() {
+        if (this.overlay) {
+            this.overlay.classList.add("bab-ready");
+        }
+        if (this.tapCta) {
+            this.tapCta.hidden = false;
+        }
+    },
+
+    hideTapToStart() {
+        if (this.overlay) {
+            this.overlay.classList.remove("bab-ready");
+        }
+        if (this.tapCta) {
+            this.tapCta.hidden = true;
+        }
+    },
+
     hide() {
         if (!this.overlay) return;
         clearInterval(this.tipTimer);
         clearInterval(this.syncTimer);
+        clearInterval(this.moduleHookTimer);
+        clearInterval(this.indeterminateTimer);
         this.overlay.classList.add("bab-loader-out");
         setTimeout(() => {
             this.overlay.style.display = "none";
@@ -484,13 +570,56 @@ function show_infobox() {
             50% { transform: scale(1.03); box-shadow: 0 0 36px rgba(94, 231, 255, 0.6); }
         }
 
-        #transfer { display: none !important; }
+        #bab-loader.bab-ready .bab-panel {
+            border-color: rgba(255, 213, 106, 0.75);
+            box-shadow:
+                0 0 48px rgba(255, 213, 106, 0.25),
+                inset 0 0 60px rgba(0, 0, 0, 0.35);
+            animation: bab-ready-pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes bab-ready-pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+        }
+
+        #bab-tap-cta {
+            display: block;
+            margin-top: 0.85rem;
+            padding: 0.55rem 1rem;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #ffd56a, #ff9f43);
+            color: #1a1200;
+            font-weight: 800;
+            font-size: 0.88rem;
+            letter-spacing: 0.04em;
+            animation: bab-cta-blink 1.2s ease-in-out infinite;
+        }
+
+        #bab-tap-cta[hidden] {
+            display: none !important;
+        }
+
+        @keyframes bab-cta-blink {
+            0%, 100% { opacity: 0.85; }
+            50% { opacity: 1; }
+        }
+
+        #transfer {
+            position: absolute;
+            left: -9999px;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+            opacity: 0;
+            pointer-events: none;
+        }
 
         #status, #progress { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
 
         canvas.emscripten {
             border: 0 none;
-            background-color: transparent;
+            background-color: #000;
             width: 100%;
             height: 100%;
             z-index: 5;
@@ -498,6 +627,7 @@ function show_infobox() {
             margin: 0 auto;
             position: absolute;
             top: 0; bottom: 0; left: 0; right: 0;
+            visibility: hidden;
         }
 
         div.emscripten { text-align: center; }
@@ -527,6 +657,7 @@ function show_infobox() {
             <div class="bab-bar-track"><div id="bab-bar-fill"></div></div>
             <div id="bab-percent">0%</div>
             <div id="bab-tip"></div>
+            <div id="bab-tap-cta" hidden>▶ タップ / クリックで開始</div>
             <div class="bab-dots">▸▸▸</div>
         </div>
     </div>
@@ -584,6 +715,10 @@ function show_infobox() {
     </div>
 
     <script type="application/javascript">
+    if (window.BABLoader) {
+        BABLoader.init();
+    }
+
     (function spawnStars() {
         const box = document.getElementById("bab-stars");
         if (!box) return;
@@ -608,7 +743,9 @@ function show_infobox() {
         info.hidden = debug_hidden;
         box.hidden = debug_hidden;
         infobox.style.display = "none";
-        if (window.BABLoader) BABLoader.init();
+        if (window.BABLoader) {
+            BABLoader.init();
+        }
     }
 
     function custom_prerun() {}

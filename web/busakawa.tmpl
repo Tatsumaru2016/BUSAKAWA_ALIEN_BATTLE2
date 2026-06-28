@@ -1,0 +1,638 @@
+<html lang="ja"><script src="{{cookiecutter.cdn}}pythons.js" type=module id="site" data-python="python{{cookiecutter.PYBUILD}}" data-LINES=42 data-COLUMNS=132 data-os="vtx,snd,gui" async defer>#<!--
+
+print("""
+Loading {{cookiecutter.title}} from {{cookiecutter.archive}}.apk
+""")
+
+import sys
+import asyncio
+import platform
+import json
+from pathlib import Path
+
+async def bab_set_stage(msg, pct=None):
+    try:
+        w = platform.window
+        el = w.document.getElementById("bab-stage")
+        if el:
+            el.innerText = msg
+        if pct is not None:
+            w.eval(f"window.BABLoader && BABLoader.setPercent({float(pct)})")
+    except Exception:
+        pass
+
+async def bab_hide_loader():
+    try:
+        platform.window.eval("window.BABLoader && BABLoader.hide()")
+    except Exception:
+        pass
+
+async def custom_site():
+    import embed
+    platform.window.transfer.hidden = True
+    platform.window.canvas.style.visibility = "visible"
+
+    bundle = "{{cookiecutter.archive}}"
+    appdir = Path(f"/data/data/{bundle}")
+    appdir.mkdir()
+
+    await bab_set_stage("アーカイブを展開しています…", 82)
+
+    if platform.window.location.host.find('.itch.zone')>0:
+        import zipfile
+        async with platform.fopen("{{cookiecutter.archive}}.apk", "rb") as archive:
+            with zipfile.ZipFile(archive) as zip_ref:
+                zip_ref.extractall(appdir.as_posix())
+    else:
+        import tarfile
+        async with platform.fopen("{{cookiecutter.archive}}.tar.gz", "rb") as archive:
+            tar = tarfile.open(fileobj=archive, mode="r:gz")
+            tar.extractall(path=appdir.as_posix(), filter='tar')
+            tar.close()
+
+    await bab_set_stage("Python ランタイムを起動しています…", 88)
+    platform.run_main(PyConfig, loaderhome= appdir / "assets", loadermain=None)
+
+    tick = 0
+    while embed.counter() < 0:
+        tick += 1
+        pct = 88 + min(7.0, tick * 0.12)
+        await bab_set_stage("ゲームデータを読み込んでいます…", pct)
+        await asyncio.sleep(.1)
+
+    main = appdir / "assets" / "main.py"
+
+    if not platform.window.MM.UME:
+        __import__(__name__).__file__ = main
+        msg = "準備完了！画面をタップ / クリックで開始"
+        platform.window.infobox.innerText = msg
+        platform.window.infobox.className = "bab-start-prompt"
+        platform.window.infobox.style.display = "block"
+        await bab_hide_loader()
+        while not platform.window.MM.UME:
+            await asyncio.sleep(.1)
+
+    await TopLevel_async_handler.start_toplevel(platform.shell, console=window.python.config.debug)
+    __import__(__name__).__file__ = main
+
+    def ui_callback(pkg):
+        platform.window.infobox.innerText = f"モジュール読込中: {pkg}"
+        try:
+            el = platform.window.document.getElementById("bab-stage")
+            if el:
+                el.innerText = f"モジュール読込中: {pkg}"
+        except Exception:
+            pass
+
+    await bab_set_stage("ゲームを起動しています…", 96)
+    await shell.source(main, callback=ui_callback)
+
+    await bab_hide_loader()
+    platform.window.infobox.style.display = "none"
+    platform.window.config.gui_divider = 1
+    platform.window.window_resize()
+    shell.interactive()
+
+asyncio.run( custom_site() )
+
+# BEGIN BLOCK
+#
+# now this is the html part you can (and should) customize
+# It is not mandatory : pygame-script when it reads the first line (also called
+# shebang ) of above code create absolute minimal widget set
+# required for running with default rules
+#
+# do not alter that comment block it is separating python code from html code
+# =============================================================================
+# --></script><head><!--
+--><script type="application/javascript">
+// END BLOCK
+
+config = {
+    xtermjs : "{{cookiecutter.xtermjs}}" ,
+    _sdl2 : "canvas",
+    user_canvas : 0,
+    user_canvas_managed : 0,
+    gui_divider : 2,
+    ume_block : {{cookiecutter.ume_block}},
+    can_close : {{cookiecutter.can_close}},
+    archive : "{{cookiecutter.archive}}",
+    gui_debug : 2,
+    cdn : "{{cookiecutter.cdn}}",
+    autorun : {{cookiecutter.autorun}},
+    PYBUILD : "{{cookiecutter.PYBUILD}}",
+    fb_ar   :  1.77,
+    fb_width : "{{cookiecutter.width}}",
+    fb_height : "{{cookiecutter.height}}"
+}
+
+window.BABLoader = {
+    tips: [
+        "初回プレイは約 90MB のデータ取得があります。コーヒーをどうぞ。",
+        "連鎖を繋げると得点倍率がグンと上がります。",
+        "レーザーはチャージ後、R キーで発射。",
+        "シールドを削られても、被弾しなければ連鎖ボーナスは維持されます。",
+        "ボス撃破後のスコア集計をお見逃しなく。",
+        "NIGHTMARE は HARD クリア後に解放されます。",
+        "Q キー / Start でポーズ。設定はタイトルから変更できます。"
+    ],
+    tipIndex: 0,
+    tipTimer: null,
+    lastPct: 0,
+
+    init() {
+        this.overlay = document.getElementById("bab-loader");
+        this.barFill = document.getElementById("bab-bar-fill");
+        this.percent = document.getElementById("bab-percent");
+        this.stage = document.getElementById("bab-stage");
+        this.tip = document.getElementById("bab-tip");
+        this.progress = document.getElementById("progress");
+        this.status = document.getElementById("status");
+
+        const sync = () => this.syncProgress();
+        if (this.progress) {
+            new MutationObserver(sync).observe(this.progress, {
+                attributes: true,
+                attributeFilter: ["value", "max", "hidden"]
+            });
+        }
+        if (this.status) {
+            new MutationObserver(sync).observe(this.status, {
+                childList: true,
+                characterData: true,
+                subtree: true
+            });
+        }
+        this.syncTimer = setInterval(sync, 80);
+        this.tipTimer = setInterval(() => this.rotateTip(), 4200);
+        this.rotateTip();
+        sync();
+    },
+
+    stageFromStatus(text) {
+        const t = (text || "").toLowerCase();
+        if (t.includes("download")) return "データをダウンロードしています…";
+        if (t.includes("wasm") || t.includes("compile")) return "WebAssembly をコンパイルしています…";
+        if (t.includes("preload") || t.includes("load")) return "ランタイムを準備しています…";
+        if (t.includes("run")) return "起動準備中…";
+        return "読み込み中…";
+    },
+
+    syncProgress() {
+        const p = this.progress;
+        let pct = this.lastPct;
+        if (p && !p.hidden && p.max > 0) {
+            const raw = (parseFloat(p.value) || 0) / (parseFloat(p.max) || 100);
+            pct = Math.min(99, Math.max(0, raw * 100));
+            if (parseFloat(p.value) > 100) {
+                pct = Math.min(99, 70 + (parseFloat(p.value) - 100) * 0.6);
+            }
+        }
+        if (pct > this.lastPct) {
+            this.lastPct = pct;
+        }
+        this.setPercent(this.lastPct);
+        if (this.status && this.status.textContent) {
+            const label = this.stageFromStatus(this.status.textContent);
+            if (this.stage && pct < 80) {
+                this.stage.textContent = label;
+            }
+        }
+    },
+
+    setPercent(pct) {
+        const v = Math.min(100, Math.max(0, pct));
+        this.lastPct = Math.max(this.lastPct, v);
+        if (this.barFill) this.barFill.style.width = this.lastPct + "%";
+        if (this.percent) this.percent.textContent = Math.floor(this.lastPct) + "%";
+    },
+
+    setStage(text) {
+        if (text && this.stage) this.stage.textContent = text;
+    },
+
+    rotateTip() {
+        if (!this.tip) return;
+        this.tip.classList.remove("bab-tip-in");
+        void this.tip.offsetWidth;
+        this.tip.textContent = this.tips[this.tipIndex % this.tips.length];
+        this.tipIndex += 1;
+        this.tip.classList.add("bab-tip-in");
+    },
+
+    hide() {
+        if (!this.overlay) return;
+        clearInterval(this.tipTimer);
+        clearInterval(this.syncTimer);
+        this.overlay.classList.add("bab-loader-out");
+        setTimeout(() => {
+            this.overlay.style.display = "none";
+        }, 650);
+    }
+};
+
+function show_infobox() {
+    infobox.style.display = "block";
+    const w = infobox.offsetWidth;
+    const h = infobox.offsetHeight;
+    infobox.style.left = ((window.innerWidth - w) / 2) + "px";
+    infobox.style.top = ((window.innerHeight - h) / 2) + "px";
+}
+
+</script>
+
+    <title>{{cookiecutter.title}}</title>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes"/>
+    <link rel="icon" type="image/png" href="favicon.png" sizes="16x16">
+
+    <style>
+        :root {
+            --bab-cyan: #5ee7ff;
+            --bab-magenta: #ff6eb4;
+            --bab-gold: #ffd56a;
+            --bab-bg0: #030712;
+            --bab-bg1: #0a1628;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: "Segoe UI", "Hiragino Sans", "Yu Gothic UI", sans-serif;
+            background: radial-gradient(ellipse at 50% 20%, #142238 0%, var(--bab-bg0) 55%, #000 100%);
+            color: #e8f4ff;
+            overflow: hidden;
+        }
+
+        #bab-loader {
+            position: fixed;
+            inset: 0;
+            z-index: 999990;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background:
+                radial-gradient(circle at 20% 80%, rgba(94, 231, 255, 0.08) 0%, transparent 45%),
+                radial-gradient(circle at 80% 20%, rgba(255, 110, 180, 0.07) 0%, transparent 40%),
+                linear-gradient(160deg, var(--bab-bg1) 0%, var(--bab-bg0) 100%);
+            transition: opacity 0.55s ease, transform 0.55s ease;
+        }
+
+        #bab-loader.bab-loader-out {
+            opacity: 0;
+            transform: scale(1.03);
+            pointer-events: none;
+        }
+
+        .bab-stars {
+            position: absolute;
+            inset: 0;
+            overflow: hidden;
+            pointer-events: none;
+        }
+
+        .bab-stars span {
+            position: absolute;
+            width: 2px;
+            height: 2px;
+            background: #fff;
+            border-radius: 50%;
+            opacity: 0.35;
+            animation: bab-twinkle 2.4s ease-in-out infinite;
+        }
+
+        @keyframes bab-twinkle {
+            0%, 100% { opacity: 0.15; transform: scale(1); }
+            50% { opacity: 0.9; transform: scale(1.4); }
+        }
+
+        .bab-shooter {
+            position: absolute;
+            width: 12px;
+            height: 20px;
+            background: linear-gradient(180deg, var(--bab-cyan), #1a6bff);
+            border-radius: 40% 40% 20% 20%;
+            box-shadow: 0 0 12px rgba(94, 231, 255, 0.7);
+            animation: bab-fly 6s linear infinite;
+            opacity: 0.55;
+        }
+
+        .bab-shooter::after {
+            content: "";
+            position: absolute;
+            bottom: -8px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 4px;
+            height: 10px;
+            background: rgba(255, 213, 106, 0.8);
+            border-radius: 2px;
+            animation: bab-thrust 0.15s alternate infinite;
+        }
+
+        @keyframes bab-fly {
+            0% { transform: translate(-10vw, 110vh) rotate(-12deg); }
+            100% { transform: translate(110vw, -20vh) rotate(-12deg); }
+        }
+
+        @keyframes bab-thrust {
+            from { height: 8px; opacity: 0.5; }
+            to { height: 14px; opacity: 1; }
+        }
+
+        .bab-panel {
+            position: relative;
+            width: min(92vw, 520px);
+            padding: 2rem 1.75rem 1.6rem;
+            border: 1px solid rgba(94, 231, 255, 0.35);
+            border-radius: 16px;
+            background: rgba(6, 14, 28, 0.82);
+            box-shadow:
+                0 0 40px rgba(94, 231, 255, 0.12),
+                inset 0 0 60px rgba(0, 0, 0, 0.35);
+            backdrop-filter: blur(8px);
+            text-align: center;
+        }
+
+        .bab-logo {
+            width: 72px;
+            height: 72px;
+            margin: 0 auto 0.75rem;
+            animation: bab-pulse 2s ease-in-out infinite;
+            filter: drop-shadow(0 0 12px rgba(94, 231, 255, 0.5));
+        }
+
+        @keyframes bab-pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.06); }
+        }
+
+        .bab-title {
+            margin: 0 0 0.25rem;
+            font-size: clamp(1.1rem, 4vw, 1.45rem);
+            letter-spacing: 0.06em;
+            color: var(--bab-cyan);
+            text-shadow: 0 0 20px rgba(94, 231, 255, 0.35);
+        }
+
+        .bab-sub {
+            margin: 0 0 1.25rem;
+            font-size: 0.78rem;
+            color: rgba(200, 220, 255, 0.65);
+            letter-spacing: 0.12em;
+        }
+
+        #bab-stage {
+            min-height: 1.4em;
+            margin-bottom: 0.85rem;
+            font-size: 0.95rem;
+            color: #c8e6ff;
+        }
+
+        .bab-bar-track {
+            position: relative;
+            height: 14px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.08);
+            overflow: hidden;
+            border: 1px solid rgba(94, 231, 255, 0.25);
+        }
+
+        #bab-bar-fill {
+            height: 100%;
+            width: 0%;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #1a6bff, var(--bab-cyan), var(--bab-gold));
+            background-size: 200% 100%;
+            animation: bab-bar-shine 1.8s linear infinite;
+            transition: width 0.25s ease-out;
+            box-shadow: 0 0 16px rgba(94, 231, 255, 0.55);
+        }
+
+        @keyframes bab-bar-shine {
+            0% { background-position: 100% 0; }
+            100% { background-position: -100% 0; }
+        }
+
+        #bab-percent {
+            margin-top: 0.55rem;
+            font-size: 1.65rem;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            color: var(--bab-gold);
+            text-shadow: 0 0 12px rgba(255, 213, 106, 0.4);
+        }
+
+        #bab-tip {
+            margin-top: 1.1rem;
+            min-height: 2.6em;
+            font-size: 0.82rem;
+            line-height: 1.55;
+            color: rgba(180, 210, 255, 0.75);
+            opacity: 0;
+            transform: translateY(6px);
+        }
+
+        #bab-tip.bab-tip-in {
+            animation: bab-tip-in 0.45s ease forwards;
+        }
+
+        @keyframes bab-tip-in {
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .bab-dots {
+            margin-top: 0.75rem;
+            letter-spacing: 0.35em;
+            color: var(--bab-magenta);
+            animation: bab-dots 1.2s steps(4, end) infinite;
+        }
+
+        @keyframes bab-dots {
+            0% { opacity: 0.2; }
+            50% { opacity: 1; }
+            100% { opacity: 0.2; }
+        }
+
+        #infobox {
+            position: fixed;
+            z-index: 999999;
+            display: none;
+            padding: 16px 28px;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 1.05rem;
+            text-align: center;
+            cursor: pointer;
+        }
+
+        #infobox.bab-start-prompt {
+            background: linear-gradient(135deg, rgba(26, 107, 255, 0.92), rgba(94, 231, 255, 0.85));
+            color: #041018;
+            border: 2px solid rgba(255, 255, 255, 0.45);
+            box-shadow: 0 0 30px rgba(94, 231, 255, 0.45);
+            animation: bab-start-pulse 1.6s ease-in-out infinite;
+        }
+
+        @keyframes bab-start-pulse {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 20px rgba(94, 231, 255, 0.35); }
+            50% { transform: scale(1.03); box-shadow: 0 0 36px rgba(94, 231, 255, 0.6); }
+        }
+
+        #transfer { display: none !important; }
+
+        #status, #progress { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+
+        canvas.emscripten {
+            border: 0 none;
+            background-color: transparent;
+            width: 100%;
+            height: 100%;
+            z-index: 5;
+            padding: 0;
+            margin: 0 auto;
+            position: absolute;
+            top: 0; bottom: 0; left: 0; right: 0;
+        }
+
+        div.emscripten { text-align: center; }
+        div.emscripten_border { border: 1px solid black; }
+
+        .topright { position: absolute; top: 0; right: 0; }
+        .bottomright { position: absolute; top: 40%; right: 0; }
+        .center { display: flex; align-items: center; justify-content: center; }
+        .trinfo { position: relative; right: 0; border: 1px solid black; }
+        .framed { position: relative; top: 150px; right: 10px; border: 1px solid black; }
+    </style>
+
+</head>
+
+<body>
+
+    <div id="bab-loader" aria-live="polite" aria-busy="true">
+        <div class="bab-stars" id="bab-stars"></div>
+        <div class="bab-shooter" style="left: 8%; animation-delay: 0s;"></div>
+        <div class="bab-shooter" style="left: 55%; animation-delay: 2.2s; animation-duration: 7.5s;"></div>
+        <div class="bab-shooter" style="left: 78%; animation-delay: 4.1s; animation-duration: 5.5s;"></div>
+        <div class="bab-panel">
+            <img class="bab-logo" src="favicon.png" alt="" width="72" height="72">
+            <h1 class="bab-title">{{cookiecutter.title}}</h1>
+            <p class="bab-sub">WEB EDITION</p>
+            <div id="bab-stage">起動準備中…</div>
+            <div class="bab-bar-track"><div id="bab-bar-fill"></div></div>
+            <div id="bab-percent">0%</div>
+            <div id="bab-tip"></div>
+            <div class="bab-dots">▸▸▸</div>
+        </div>
+    </div>
+
+    <div id="transfer" align=center>
+        <div class="emscripten" id="status">Downloading...</div>
+        <div class="emscripten">
+            <progress value="0" max="100" id="progress"></progress>
+        </div>
+    </div>
+
+    <canvas class="emscripten" id="canvas" width="1px" height="1px"
+        oncontextmenu="event.preventDefault()" tabindex=1></canvas>
+
+    <canvas class="emscripten" id="canvas3d"
+        width="{{cookiecutter.width}}px" height="{{cookiecutter.height}}px"
+        oncontextmenu="event.preventDefault()" tabindex=1 hidden></canvas>
+
+    <div id="infobox">Loading, please wait ...</div>
+
+    <div id=html></div>
+
+    <div id=crt class=bottomright>
+        <div id="system" hidden>
+            <div class="button-container">
+                <button id="aiostop" disabled>AIO</button>
+                <button id="aiopaused_true" disabled>AIO</button>
+                <button id="aiopaused_false" disabled>AIO</button>
+                <button id="pygame_mixer_music_pause" disabled>Music</button>
+            </div>
+            <div class="button-container">
+                <div id=load_min>min</div>
+                <div id=load_avg>avg</div>
+                <div id=load_max>max</div>
+                <button id="load_rst" disabled>RESET</button>
+            </div>
+            <div id="level">(battery level unknown)</div>
+            <div id="stateBattery">(charging state unknown)</div>
+        </div>
+        <div id=box class="emscripten_border" hidden=true>
+            <div id="info" class="trinfo"></div>
+            <iframe id="iframe" class="framed" name="iframe"
+                width="470px" height="90%" allowtransparency="true"
+                frameborder="1" src="{{cookiecutter.cdn}}empty.html" scrolling="yes"></iframe>
+        </div>
+    </div>
+
+    <div id="dlg" hidden>
+        <input type="file" id="dlg_multifile" multiple accept="image/*">
+        <label for="dlg_multifile">Select files</label>
+    </div>
+
+    <div id="pyconsole">
+        <div id="terminal" tabIndex=1 align="left"></div>
+    </div>
+
+    <script type="application/javascript">
+    (function spawnStars() {
+        const box = document.getElementById("bab-stars");
+        if (!box) return;
+        for (let i = 0; i < 48; i++) {
+            const s = document.createElement("span");
+            s.style.left = (Math.random() * 100) + "%";
+            s.style.top = (Math.random() * 100) + "%";
+            s.style.animationDelay = (Math.random() * 2.4) + "s";
+            s.style.animationDuration = (1.6 + Math.random() * 2) + "s";
+            box.appendChild(s);
+        }
+    })();
+
+    globalThis.__canvas_resized = (self, ecw, ech) => {
+        console.warn("canvas resize", self, ecw, ech);
+    }
+
+    async function custom_onload(debug_hidden) {
+        pyconsole.hidden = debug_hidden;
+        system.hidden = debug_hidden;
+        transfer.hidden = true;
+        info.hidden = debug_hidden;
+        box.hidden = debug_hidden;
+        infobox.style.display = "none";
+        if (window.BABLoader) BABLoader.init();
+    }
+
+    function custom_prerun() {}
+    function custom_postrun() {}
+
+    function debug() {
+        python.config.debug = true;
+        custom_onload(false);
+        Module.PyRun_SimpleString("shell.uptime()");
+        window_resize();
+    }
+
+    function info_inline(data) {
+        document.getElementById("info").innerHTML = data;
+    }
+
+    function info_online(url) {
+        fetch(url).then(r => r.text()).then(info_inline).catch(console.warn);
+    }
+
+    function frame_online(url) {
+        window.frames["iframe"].location = url;
+    }
+    </script>
+
+</body>
+</html>

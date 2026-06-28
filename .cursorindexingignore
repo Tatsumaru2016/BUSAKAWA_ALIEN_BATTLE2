@@ -1,0 +1,34 @@
+# Cursor: コードベース索引から除外（検索・コンテキスト高速化）
+# @ で明示指定すれば一部は参照可能な場合あり
+
+# ビルド・配布
+dist/
+build/
+
+# Python キャッシュ
+__pycache__/
+*.py[cod]
+
+# セーブデータ
+hiscore.dat
+
+# バイナリアセット（パスは assets_loader.py / settings.py を参照）
+assets/**/*.png
+assets/**/*.jpg
+assets/**/*.jpeg
+assets/**/*.gif
+assets/**/*.webp
+assets/**/*.bmp
+assets/**/*.ico
+assets/**/*.wav
+assets/**/*.ogg
+assets/**/*.mp3
+assets/**/*.flac
+assets/**/*.ttf
+assets/**/*.otf
+
+# ビルドログ類
+build/**/*.html
+*.toc
+*.exe
+*.dll

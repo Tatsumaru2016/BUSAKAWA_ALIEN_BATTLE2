@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+
+# PyInstaller / 配布ビルド
+build/
+dist/
+*.spec.bak
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+Thumbs.db
+Desktop.ini
+
+# ログ・一時
+*.log
+*.tmp
+
+# Web build (pygbag)
+favicon.png
+
+# Local save data
+hiscore.dat
+game_config.json
+progress.json

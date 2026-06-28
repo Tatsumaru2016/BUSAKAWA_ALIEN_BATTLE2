@@ -1,0 +1,4 @@
+# EXE ビルド用（build.bat が自動インストールすることもあります）
+pygame-ce
+opencv-python-headless
+pyinstaller

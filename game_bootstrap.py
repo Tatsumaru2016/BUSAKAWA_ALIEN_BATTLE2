@@ -54,15 +54,30 @@ def bootstrap(namespace: dict) -> GameBootstrap:
     namespace["screen"] = screen
     namespace["clock"] = clock
 
+    from platform_web import is_web
+
+    if is_web():
+        from web_loader import hide_html_loader, paint_boot_screen
+
+        hide_html_loader()
+        paint_boot_screen(screen, "グラフィックを読み込んでいます…（初回1〜5分）", 12)
+
     install_screen_modes(namespace)
     install_game_constants(namespace)
 
     config_mgr = ConfigManager()
     install_config_ui(namespace, config_mgr)
 
-    install_assets(namespace, load_all_assets(PLAY_WIDTH, PLAY_HEIGHT))
+    install_assets(namespace, load_all_assets(PLAY_WIDTH, PLAY_HEIGHT, boot_screen=screen if is_web() else None))
+
+    if is_web():
+        paint_boot_screen(screen, "効果音を読み込んでいます…", 78)
+
     set_window_icon()
     install_sfx(namespace, load_all_sfx(load_sound))
+
+    if is_web():
+        paint_boot_screen(screen, "起動準備中…", 92)
 
     render_ui.configure(
         namespace["font"],

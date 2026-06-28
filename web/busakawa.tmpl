@@ -12,18 +12,10 @@ from pathlib import Path
 
 async def bab_set_stage(msg, pct=None):
     try:
-        doc = platform.document
-        el = doc.getElementById("bab-stage")
-        if el:
-            el.innerText = msg
+        js = f"window.BABLoader && BABLoader.setStage({json.dumps(msg, ensure_ascii=False)})"
+        platform.window.eval(js)
         if pct is not None:
-            v = max(0.0, min(100.0, float(pct)))
-            fill = doc.getElementById("bab-bar-fill")
-            pct_el = doc.getElementById("bab-percent")
-            if fill:
-                fill.style.width = f"{v}%"
-            if pct_el:
-                pct_el.innerText = f"{int(v)}%"
+            platform.window.eval(f"window.BABLoader && BABLoader.setPercent({float(pct)})")
     except Exception:
         pass
 
@@ -91,18 +83,18 @@ async def custom_site():
     __import__(__name__).__file__ = main
 
     def ui_callback(pkg):
-        platform.window.infobox.innerText = f"モジュール読込中: {pkg}"
+        msg = f"モジュール読込中: {pkg}"
         try:
-            el = platform.window.document.getElementById("bab-stage")
-            if el:
-                el.innerText = f"モジュール読込中: {pkg}"
+            platform.window.eval(
+                f"window.BABLoader && BABLoader.setStage({json.dumps(msg, ensure_ascii=False)})"
+            )
+            platform.window.eval("window.BABLoader && BABLoader.setPercent(Math.min(93, BABLoader.lastPct + 0.2))")
         except Exception:
             pass
 
-    await bab_set_stage("ゲームを起動しています…", 96)
+    await bab_set_stage("ゲームを起動しています…（アセット読込に数分かかることがあります）", 90)
     await shell.source(main, callback=ui_callback)
 
-    await bab_hide_loader()
     platform.window.canvas.style.visibility = "visible"
     platform.window.infobox.style.display = "none"
     platform.window.config.gui_divider = 1
@@ -251,9 +243,9 @@ window.BABLoader = {
             const max = parseFloat(p.max);
             const val = parseFloat(p.value);
             if (!Number.isNaN(max) && max > 0 && !Number.isNaN(val)) {
-                pct = Math.min(99, Math.max(0, (val / max) * 100));
+                pct = Math.min(89, Math.max(0, (val / max) * 100));
                 if (val > max) {
-                    pct = Math.min(99, 72 + (val - max) * 0.45);
+                    pct = Math.min(89, 72 + (val - max) * 0.45);
                 }
             }
         }
@@ -271,6 +263,10 @@ window.BABLoader = {
         this.lastPct = Math.max(this.lastPct, v);
         if (this.barFill) this.barFill.style.width = this.lastPct + "%";
         if (this.percent) this.percent.textContent = Math.floor(this.lastPct) + "%";
+    },
+
+    bumpProgress(delta) {
+        this.setPercent(this.lastPct + delta);
     },
 
     setStage(text) {

@@ -17,6 +17,7 @@ if not defined REPO (
     echo Creating public GitHub repository ...
     "%GH%" repo create BUSAKAWA_ALIEN_BATTLE2 --public --source=. --remote=origin --push
     if errorlevel 1 exit /b 1
+    for /f "delims=" %%R in ('"%GH%" repo view --json nameWithOwner -q .nameWithOwner 2^>nul') do set "REPO=%%R"
 ) else (
     echo Remote repository: %REPO%
     git push -u origin main

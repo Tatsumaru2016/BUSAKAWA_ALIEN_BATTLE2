@@ -3,25 +3,37 @@
 import asyncio
 import sys
 
-import pygame
-
 from settings import *
-import game_loop
-import screen_handlers
-from audio_focus import handle_window_focus_event
-from game_bootstrap import bootstrap
-from game_input_device import handle_joystick_plug_event
-from game_layout import (
-    activate_play_view,
-    deactivate_play_view,
-    draw_frame_chrome,
-)
-from screen_modes import ENDING_EXTRA_DIVE, EXTRA_PLAY, GAMEOVER, PLAY, TITLE
-
-_PLAYFIELD_STATES = (PLAY, GAMEOVER, EXTRA_PLAY, ENDING_EXTRA_DIVE)
 
 
 async def main() -> None:
+    if sys.platform == "emscripten":
+        from web_loader import set_html_stage
+
+        set_html_stage("Loading pygame-ce...", 91)
+        await asyncio.sleep(0)
+
+    import pygame
+    import game_loop
+    import screen_handlers
+    from audio_focus import handle_window_focus_event
+    from game_bootstrap import bootstrap
+    from game_input_device import handle_joystick_plug_event
+    from game_layout import (
+        activate_play_view,
+        deactivate_play_view,
+        draw_frame_chrome,
+    )
+    from screen_modes import ENDING_EXTRA_DIVE, EXTRA_PLAY, GAMEOVER, PLAY, TITLE
+
+    _PLAYFIELD_STATES = (PLAY, GAMEOVER, EXTRA_PLAY, ENDING_EXTRA_DIVE)
+
+    if sys.platform == "emscripten":
+        from web_loader import set_html_stage
+
+        set_html_stage("Initializing game...", 94)
+        await asyncio.sleep(0)
+
     _boot = await bootstrap(globals())
     app = _boot.app
     play = _boot.play

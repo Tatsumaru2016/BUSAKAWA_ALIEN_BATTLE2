@@ -40,7 +40,7 @@ class GameBootstrap:
     screen: pygame.Surface
 
 
-def bootstrap(namespace: dict) -> GameBootstrap:
+async def bootstrap(namespace: dict) -> GameBootstrap:
     """main の globals() を初期化し、GameBootstrap を返す。"""
     install_layout(namespace)
     namespace.setdefault("FPS", FPS)
@@ -67,18 +67,23 @@ def bootstrap(namespace: dict) -> GameBootstrap:
     config_mgr = ConfigManager()
     install_config_ui(namespace, config_mgr)
 
-    install_assets(namespace, load_all_assets(PLAY_WIDTH, PLAY_HEIGHT, boot_screen=screen if is_web() else None))
+    install_assets(namespace, await load_all_assets(PLAY_WIDTH, PLAY_HEIGHT, boot_screen=screen if is_web() else None))
 
     if is_web():
-        paint_boot_screen(screen, "効果音を読み込んでいます…", 78, font_path=namespace.get("noto_font_path"))
+        paint_boot_screen(screen, "Loading sound effects...", 78, font_path=namespace.get("noto_font_path"))
+        import asyncio
+
+        await asyncio.sleep(0)
 
     set_window_icon()
     install_sfx(namespace, load_all_sfx(load_sound))
 
     if is_web():
         from web_loader import hide_html_loader, paint_boot_screen
+        import asyncio
 
-        paint_boot_screen(screen, "起動準備中…", 100, font_path=namespace.get("noto_font_path"))
+        paint_boot_screen(screen, "Almost ready...", 100, font_path=namespace.get("noto_font_path"))
+        await asyncio.sleep(0)
         hide_html_loader()
 
     render_ui.configure(

@@ -12,10 +12,9 @@ from pathlib import Path
 
 async def bab_set_stage(msg, pct=None):
     try:
-        doc = platform.document
-        el = doc.getElementById("bab-stage")
-        if el:
-            el.innerText = msg
+        platform.window.eval(
+            f"window.BABLoader && BABLoader.setStage({json.dumps(msg, ensure_ascii=True)})"
+        )
         if pct is not None:
             platform.window.eval(f"window.BABLoader && BABLoader.setPercent({float(pct)})")
     except Exception:
@@ -47,7 +46,7 @@ async def custom_site():
     appdir = Path(f"/data/data/{bundle}")
     appdir.mkdir()
 
-    await bab_set_stage("アーカイブを展開しています…", 82)
+    await bab_set_stage("Extracting game data...", 82)
 
     if platform.window.location.host.find('.itch.zone')>0:
         import zipfile
@@ -61,40 +60,37 @@ async def custom_site():
             tar.extractall(path=appdir.as_posix(), filter='tar')
             tar.close()
 
-    await bab_set_stage("Python ランタイムを起動しています…", 88)
+    await bab_set_stage("Starting Python runtime...", 88)
     platform.run_main(PyConfig, loaderhome= appdir / "assets", loadermain=None)
 
     tick = 0
     while embed.counter() < 0:
         tick += 1
         pct = 88 + min(7.0, tick * 0.12)
-        await bab_set_stage("ゲームデータを読み込んでいます…", pct)
+        await bab_set_stage("Loading runtime...", pct)
         await asyncio.sleep(.1)
 
     main = appdir / "assets" / "main.py"
 
-    if not platform.window.MM.UME:
-        __import__(__name__).__file__ = main
-        await bab_set_stage("Ready! Tap / click to start", 100)
-        await bab_show_tap_to_start()
-        while not platform.window.MM.UME:
-            await asyncio.sleep(.1)
-        await bab_hide_tap_to_start()
+    try:
+        platform.window.MM.UME = True
+    except Exception:
+        pass
 
     await TopLevel_async_handler.start_toplevel(platform.shell, console=window.python.config.debug)
     __import__(__name__).__file__ = main
 
     def ui_callback(pkg):
-        msg = f"Loading module: {pkg}"
+        msg = f"Loading: {pkg}"
         try:
-            el = platform.document.getElementById("bab-stage")
-            if el:
-                el.innerText = msg
-            platform.window.eval("window.BABLoader && BABLoader.setPercent(Math.min(93, BABLoader.lastPct + 0.2))")
+            platform.window.eval(
+                f"window.BABLoader && BABLoader.setStage({json.dumps(msg, ensure_ascii=True)})"
+            )
+            platform.window.eval("window.BABLoader && BABLoader.setPercent(Math.min(98, BABLoader.lastPct + 0.15))")
         except Exception:
             pass
 
-    await bab_set_stage("ゲームを起動しています…（アセット読込に数分かかることがあります）", 90)
+    await bab_set_stage("Starting game (first load may take several minutes)...", 90)
     await shell.source(main, callback=ui_callback)
 
     platform.window.canvas.style.visibility = "visible"
@@ -238,9 +234,6 @@ window.BABLoader = {
             Module.setStatus = (text) => {
                 orig(text);
                 this.syncProgress();
-                if (text && text !== "hide" && this.lastPct < 82) {
-                    this.setStage(this.stageFromStatus(String(text)));
-                }
                 if (text === "hide") {
                     this.setPercent(Math.max(this.lastPct, 95));
                 }
@@ -293,9 +286,6 @@ window.BABLoader = {
             this.lastPct = pct;
         }
         this.setPercent(this.lastPct);
-        if (this.status && this.status.textContent && this.lastPct < 82) {
-            this.setStage(this.stageFromStatus(this.status.textContent));
-        }
     },
 
     setPercent(pct) {

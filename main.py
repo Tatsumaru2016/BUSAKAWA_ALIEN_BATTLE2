@@ -22,7 +22,7 @@ _PLAYFIELD_STATES = (PLAY, GAMEOVER, EXTRA_PLAY, ENDING_EXTRA_DIVE)
 
 
 async def main() -> None:
-    _boot = bootstrap(globals())
+    _boot = await bootstrap(globals())
     app = _boot.app
     play = _boot.play
 

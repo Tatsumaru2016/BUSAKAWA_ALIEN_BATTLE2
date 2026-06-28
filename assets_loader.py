@@ -179,18 +179,21 @@ def set_window_icon():
         pass
 
 
-def load_all_assets(width, height, *, boot_screen=None):
+async def load_all_assets(width, height, *, boot_screen=None):
   """ゲームで使う画像・フォントを一括読み込み。dict を返す。"""
   out = {}
 
-  def _boot(msg, pct):
+  async def _boot(msg, pct):
       if boot_screen is None:
           return
       from web_loader import paint_boot_screen
 
       paint_boot_screen(boot_screen, msg, pct)
+      import asyncio
 
-  _boot("背景を読み込んでいます…", 18)
+      await asyncio.sleep(0)
+
+  await _boot("Loading backgrounds...", 18)
 
   for key, fname in (
       ("bg_far", "bg_far.png"),
@@ -248,7 +251,7 @@ def load_all_assets(width, height, *, boot_screen=None):
           out[key] = None
 
   out["title_img"] = _prepare_play_screen_image(load_image("title.png"), width, height)
-  _boot("UI 画像を読み込んでいます…", 32)
+  await _boot("Loading UI images...", 32)
   out["warning_img"] = pygame.transform.smoothscale(load_image("warning.png"), (400, 150))
   out["gameover_img"] = load_image("gameover.png")
 
@@ -306,7 +309,7 @@ def load_all_assets(width, height, *, boot_screen=None):
   if "shot" not in player_images:
       player_images["shot"] = player_images["normal"]
   out["player_images"] = player_images
-  _boot("弾・敵グラフィックを読み込んでいます…", 48)
+  await _boot("Loading bullets and enemies...", 48)
   try:
       out["life_icon_img"] = load_life_icon_image()
   except Exception:
@@ -463,7 +466,7 @@ def load_all_assets(width, height, *, boot_screen=None):
 
   b1_size = (668, 400)
   out["midboss_img1"] = pygame.transform.scale(load_image("midboss1.png"), b1_size)
-  _boot("ボス画像を読み込んでいます…", 62)
+  await _boot("Loading boss graphics...", 62)
   try:
       out["midboss_img1b"] = pygame.transform.scale(load_image("midboss1b.png"), b1_size)
   except Exception:
@@ -709,7 +712,7 @@ def load_all_assets(width, height, *, boot_screen=None):
       out["meteor_zako_explosion_img"] = None
 
   out["support_fighter_images"] = load_support_fighter_images(load_image)
-  _boot("アイテム画像を読み込んでいます…", 72)
+  await _boot("Loading items...", 72)
 
   out["power_weapon_img"] = pygame.transform.scale(load_image("power_weapon.png"), (56, 56))
   try:
@@ -776,7 +779,7 @@ def load_all_assets(width, height, *, boot_screen=None):
   out["hp_bar_font"] = pygame.font.Font(font_path, 15)
   out["big_font"] = pygame.font.Font(font_path, 64)
   out["noto_font_path"] = font_path
-  _boot("フォントを読み込んでいます…", 85)
+  await _boot("Loading fonts...", 85)
 
   return out
 
